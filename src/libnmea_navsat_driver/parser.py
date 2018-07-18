@@ -120,7 +120,27 @@ parse_maps = {
         ("longitude_direction", str, 6),
         ("speed", convert_knots_to_mps, 7),
         ("true_course", convert_deg_to_rads, 8),
-        ]
+        ],
+    "GSV": [
+        ("n_msgs", int, 1),
+        ("msg_number", int, 2),
+        ("n_satellites", int, 3),
+        ("prn0", int, 4),
+        ("elevation0", int, 5),
+        ("azimuth0", int, 6),
+        ("snr0", int, 7),
+        ("prn1", int, 4),
+        ("elevation1", int, 5),
+        ("azimuth1", int, 6),
+        ("snr1", int, 7),
+        ("prn2", int, 4),
+        ("elevation2", int, 5),
+        ("azimuth2", int, 6),
+        ("snr2", int, 7),
+        ("prn3", int, 4),
+        ("elevation3", int, 5),
+        ("azimuth3", int, 6),
+        ("snr3", int, 7),
     }
 
 

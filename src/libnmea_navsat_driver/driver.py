@@ -36,6 +36,7 @@ import rospy
 
 from sensor_msgs.msg import NavSatFix, NavSatStatus, TimeReference
 from geometry_msgs.msg import TwistStamped
+from nmea_msgs.msg import *
 
 from libnmea_navsat_driver.checksum_utils import check_nmea_checksum
 import libnmea_navsat_driver.parser
@@ -45,6 +46,7 @@ class RosNMEADriver(object):
     def __init__(self):
         self.fix_pub = rospy.Publisher('fix', NavSatFix, queue_size=1)
         self.vel_pub = rospy.Publisher('vel', TwistStamped, queue_size=1)
+        self.sat_pub = rospy.Publisher('sat', Gpgsv, queue_size=10)
         self.time_ref_pub = rospy.Publisher('time_reference', TimeReference, queue_size=1)
 
         self.time_ref_source = rospy.get_param('~time_ref_source', None)
@@ -169,6 +171,21 @@ class RosNMEADriver(object):
                 current_vel.twist.linear.y = data['speed'] * \
                     math.cos(data['true_course'])
                 self.vel_pub.publish(current_vel)
+        elif 'GSV' in parsed_sentence:
+            data = parsed_sentence['GSV']
+            msg = Gpgsv()
+            msg.header.stamp = rospy.Time.now()
+            msg.n_msgs = data['n_msgs']
+            msg.msg_number = data['msg_number']
+            msg.n_satellites = data['n_satellites']
+            for i in range(0,4):
+                sat = GpgsvSatellite(data['prn%d'%i], data['elevation%d'%i], data['azimuth%d'%i], data['snr%d'%i])
+                msg.satellites.append(sat)
+
+            self.sat_pub.publish(msg)
+
+        
+
         else:
             return False
 
