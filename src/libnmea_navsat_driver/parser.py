@@ -124,25 +124,38 @@ parse_maps = {
     "GSV": [
         ("n_msgs", int, 1),
         ("msg_number", int, 2),
-        ("n_satellites", int, 3),
-        ("prn0", int, 4),
-        ("elevation0", int, 5),
-        ("azimuth0", int, 6),
-        ("snr0", int, 7),
-        ("prn1", int, 4),
-        ("elevation1", int, 5),
-        ("azimuth1", int, 6),
-        ("snr1", int, 7),
-        ("prn2", int, 4),
-        ("elevation2", int, 5),
-        ("azimuth2", int, 6),
-        ("snr2", int, 7),
-        ("prn3", int, 4),
-        ("elevation3", int, 5),
-        ("azimuth3", int, 6),
-        ("snr3", int, 7),
+        ("n_satellites", safe_int, 3),
+        ("prn0", safe_int, 4),
+        ("elevation0", safe_int, 5),
+        ("azimuth0", safe_int, 6),
+        ("snr0", safe_int, 7),
+        ("prn1", safe_int, 8),
+        ("elevation1", safe_int, 9),
+        ("azimuth1", safe_int, 10),
+        ("snr1", safe_int, 11),
+        ("prn2", safe_int, 12),
+        ("elevation2", safe_int, 13),
+        ("azimuth2", safe_int, 14),
+        ("snr2", safe_int, 15),
+        ("prn3", safe_int, 16),
+        ("elevation3", safe_int, 17),
+        ("azimuth3", safe_int, 18),
+        ("snr3", safe_int, 19),
+        ],
     }
 
+def parse_gsa(data):
+    out = {}
+    out['mode'] = data[1]
+    out['fix_type'] = safe_int(data[2])
+    out['prns'] = []
+    for i in range(3, len(data)-4):
+        if len(data[i]):
+            out['prns'].append(safe_int(data[i]))
+    out['pdop'] = safe_float(data[-4])
+    out['hdop'] = safe_float(data[-3])
+    out['vdop'] = safe_float(data[-2])
+    return out
 
 def parse_nmea_sentence(nmea_sentence):
     # Check for a valid nmea sentence
@@ -155,6 +168,9 @@ def parse_nmea_sentence(nmea_sentence):
     # Ignore the $ and talker ID portions (e.g. GP)
     sentence_type = fields[0][3:]
 
+    if sentence_type == 'GSA':
+        return {'GSA': parse_gsa(fields)}
+
     if not sentence_type in parse_maps:
         logger.debug("Sentence type %s not in parse map, ignoring."
                      % repr(sentence_type))
@@ -164,6 +180,9 @@ def parse_nmea_sentence(nmea_sentence):
 
     parsed_sentence = {}
     for entry in parse_map:
-        parsed_sentence[entry[0]] = entry[1](fields[entry[2]])
+        try:
+            parsed_sentence[entry[0]] = entry[1](fields[entry[2]])
+        except:
+            pass
 
     return {sentence_type: parsed_sentence}

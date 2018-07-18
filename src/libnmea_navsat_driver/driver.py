@@ -37,6 +37,7 @@ import rospy
 from sensor_msgs.msg import NavSatFix, NavSatStatus, TimeReference
 from geometry_msgs.msg import TwistStamped
 from nmea_msgs.msg import *
+from gps_common.msg import *
 
 from libnmea_navsat_driver.checksum_utils import check_nmea_checksum
 import libnmea_navsat_driver.parser
@@ -44,6 +45,7 @@ import libnmea_navsat_driver.parser
 
 class RosNMEADriver(object):
     def __init__(self):
+        self.gpsfix_pub = rospy.Publisher('gpsfix', GPSFix, queue_size=1)
         self.fix_pub = rospy.Publisher('fix', NavSatFix, queue_size=1)
         self.vel_pub = rospy.Publisher('vel', TwistStamped, queue_size=1)
         self.sat_pub = rospy.Publisher('sat', Gpgsv, queue_size=10)
@@ -51,6 +53,7 @@ class RosNMEADriver(object):
 
         self.time_ref_source = rospy.get_param('~time_ref_source', None)
         self.use_RMC = rospy.get_param('~useRMC', False)
+        self.gpsfix = GPSFix()
 
     # Returns True if we successfully did something with the passed in
     # nmea_string
@@ -79,6 +82,10 @@ class RosNMEADriver(object):
             current_time_ref.source = self.time_ref_source
         else:
             current_time_ref.source = frame_id
+
+        gpsfix = self.gpsfix
+        gpsfix.header.stamp = current_time
+        gpsfix.header.frame_id = frame_id
 
         if not self.use_RMC and 'GGA' in parsed_sentence:
             data = parsed_sentence['GGA']
@@ -129,6 +136,9 @@ class RosNMEADriver(object):
                 current_time_ref.time_ref = rospy.Time.from_sec(data['utc_time'])
                 self.time_ref_pub.publish(current_time_ref)
 
+            gpsfix.hdop = data['hdop']
+            gpsfix.time = data['utc_time']
+
         elif 'RMC' in parsed_sentence:
             data = parsed_sentence['RMC']
 
@@ -171,6 +181,8 @@ class RosNMEADriver(object):
                 current_vel.twist.linear.y = data['speed'] * \
                     math.cos(data['true_course'])
                 self.vel_pub.publish(current_vel)
+                gpsfix.speed = data['speed']
+                gpsfix.track = math.degrees(data['true_course'])
         elif 'GSV' in parsed_sentence:
             data = parsed_sentence['GSV']
             msg = Gpgsv()
@@ -178,16 +190,48 @@ class RosNMEADriver(object):
             msg.n_msgs = data['n_msgs']
             msg.msg_number = data['msg_number']
             msg.n_satellites = data['n_satellites']
+
+            gpsfix.status.satellites_visible = msg.n_satellites
+
+            if data['msg_number'] == 1:
+                gpsfix.status.satellite_visible_prn = []
+                gpsfix.status.satellite_visible_z = []
+                gpsfix.status.satellite_visible_azimuth = []
+                gpsfix.status.satellite_visible_snr = []
+
             for i in range(0,4):
-                sat = GpgsvSatellite(data['prn%d'%i], data['elevation%d'%i], data['azimuth%d'%i], data['snr%d'%i])
-                msg.satellites.append(sat)
+                try:
+                    sat = GpgsvSatellite(data['prn%d'%i], data['elevation%d'%i], data['azimuth%d'%i], data['snr%d'%i])
+                    msg.satellites.append(sat)
+                    gpsfix.status.satellite_visible_prn.append(data['prn%d'%i])
+                    gpsfix.status.satellite_visible_z.append(data['elevation%d'%i])
+                    gpsfix.status.satellite_visible_azimuth.append(data['azimuth%d'%i])
+                    gpsfix.status.satellite_visible_snr.append(data['snr%d'%i])
+                except:
+                    pass
 
             self.sat_pub.publish(msg)
 
-        
+        elif 'GSA' in parsed_sentence:
+            data = parsed_sentence['GSA']
+            gpsfix.pdop = data['pdop']
+            gpsfix.hdop = data['hdop']
+            gpsfix.vdop = data['vdop']
+            gpsfix.status.satellites_used = len(data['prns'])
+            gpsfix.status.satellite_used_prn = data['prns']
 
         else:
             return False
+
+        if ('RMC' in parsed_sentence and self.use_RMC) or ('GGA' in parsed_sentence and not self.use_RMC):
+            gpsfix.latitude = current_fix.latitude
+            gpsfix.longitude = current_fix.longitude
+            gpsfix.altitude = current_fix.altitude
+            gpsfix.status.status = current_fix.status.status
+            gpsfix.status.position_source = gpsfix.status.orientation_source = gpsfix.status.motion_source = current_fix.status.service
+            self.gpsfix_pub.publish(gpsfix)
+
+
 
     """Helper method for getting the frame_id with the correct TF prefix"""
 
