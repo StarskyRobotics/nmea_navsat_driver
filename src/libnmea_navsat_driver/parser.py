@@ -149,12 +149,12 @@ def parse_gsa(data):
     out['mode'] = data[1]
     out['fix_type'] = safe_int(data[2])
     out['prns'] = []
-    for i in range(3, len(data)-4):
+    for i in range(3, len(data)-3):
         if len(data[i]):
             out['prns'].append(safe_int(data[i]))
-    out['pdop'] = safe_float(data[-4])
-    out['hdop'] = safe_float(data[-3])
-    out['vdop'] = safe_float(data[-2])
+    out['pdop'] = safe_float(data[-3])
+    out['hdop'] = safe_float(data[-2])
+    out['vdop'] = safe_float(data[-1][:-3])
     return out
 
 def parse_nmea_sentence(nmea_sentence):
